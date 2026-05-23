@@ -84,7 +84,6 @@ npm run dev
 ```
 
 The app is also configured with a dynamic root segment and explicit error/not-found routes to avoid this class of environment-specific App Router issues.
-
 ## API
 
 ### `POST /api/brief`
