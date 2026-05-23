@@ -69,6 +69,21 @@ Then open http://localhost:3000.
 
 Note: this project is configured to run Next.js with **Webpack** (not Turbopack) by default for better cross-platform compatibility in environments where Turbopack native bindings are unavailable.
 
+### Troubleshooting
+
+If you encounter a Next.js invariant error like:
+
+`Invariant: Expected workStore to be initialized`
+
+run:
+
+```bash
+rm -rf .next
+npm install
+npm run dev
+```
+
+The app is also configured with a dynamic root segment and explicit error/not-found routes to avoid this class of environment-specific App Router issues.
 ## API
 
 ### `POST /api/brief`
