@@ -47,16 +47,6 @@ export async function generateCompanyBrief(
   );
   const benefitsSignals = await scanBenefitsSignals(website);
 
-  if (!env.NEWS_API_KEY) {
-    warnings.push("NEWS_API_KEY not configured. Recent news may be limited.");
-  }
-  if (!env.CLEARBIT_API_KEY && !env.APOLLO_API_KEY) {
-    warnings.push("No enrichment API key configured (CLEARBIT_API_KEY or APOLLO_API_KEY).");
-  }
-  if (!env.CRUNCHBASE_API_KEY) {
-    warnings.push("CRUNCHBASE_API_KEY not configured. Funding signals may be limited.");
-  }
-
   const context: EnrichedContext = {
     companyName,
     clearbit,
@@ -73,14 +63,22 @@ export async function generateCompanyBrief(
     companyName,
     enrichedContext: context,
   });
-
-  if (!env.OPENAI_API_KEY) {
-    warnings.push("OPENAI_API_KEY not configured. Using deterministic fallback summarization.");
-  }
+  const isPublicDataMode =
+    !env.OPENAI_API_KEY &&
+    !env.NEWS_API_KEY &&
+    !env.CLEARBIT_API_KEY &&
+    !env.APOLLO_API_KEY &&
+    !env.CRUNCHBASE_API_KEY;
 
   const baseBrief = aiBrief ?? generateDeterministicBrief(context);
   const brief = applyUserProvidedOverrides(baseBrief, payload);
   const executiveSummary = buildExecutiveSummary(brief);
+
+  if (isPublicDataMode && brief.recentNews.length === 0) {
+    warnings.push(
+      "Limited public data was found for this company name. Try adding website/domain or user-provided context for better precision.",
+    );
+  }
 
   return {
     executiveSummary,
@@ -117,24 +115,69 @@ function generateDeterministicBrief(context: EnrichedContext): IntelligenceBrief
     ].filter(Boolean) as string[],
   );
   const stage = inferCompanyStage(employees, context.crunchbase?.ipo_status, context.crunchbase?.funding_total?.value_usd);
+  const companyNameSources = buildSources([
+    context.clearbit?.name ? "clearbit" : "",
+    context.apollo?.name ? "apollo" : "",
+    "user_input",
+  ]);
+  const industrySources = buildSources([
+    context.clearbit?.category?.industry ? "clearbit" : "",
+    context.apollo?.industry ? "apollo" : "",
+    context.crunchbase?.short_description ? "crunchbase" : "",
+    context.openSources.sourceUrl ? context.openSources.sourceUrl : "",
+  ]);
+  const locationSources = buildSources([
+    context.clearbit?.geo?.country ? "clearbit" : "",
+    context.apollo?.country ? "apollo" : "",
+    context.openSources.sourceUrl ? context.openSources.sourceUrl : "",
+  ]);
+  const employeeSources = buildSources([
+    typeof context.clearbit?.metrics?.employees === "number" ? "clearbit" : "",
+    typeof context.apollo?.estimated_num_employees === "number" ? "apollo" : "",
+    context.crunchbase?.num_employees_enum ? "crunchbase" : "",
+  ]);
+  const countrySources = buildSources([
+    context.crunchbase?.location_identifiers?.length ? "crunchbase" : "",
+    context.clearbit?.geo?.country ? "clearbit" : "",
+    context.apollo?.country ? "apollo" : "",
+  ]);
 
   const snapshot = {
-    companyName: createField(companyName, "confirmed", 0.95, buildSources(["clearbit", "apollo", "user_input"])),
-    industrySegment: createField(industry, industry === "Unknown" ? "estimated" : "inferred", industry === "Unknown" ? 0.35 : 0.7, buildSources(["clearbit", "apollo", "wikipedia"])),
-    headquartersLocation: createField(headquarters || "Unknown", headquarters ? "inferred" : "estimated", headquarters ? 0.68 : 0.3, buildSources(["clearbit", "apollo"])),
+    companyName: createField(companyName, "confirmed", 0.95, companyNameSources),
+    industrySegment: createField(
+      industry,
+      industry === "Unknown" ? "estimated" : "inferred",
+      industry === "Unknown" ? 0.35 : 0.7,
+      industrySources.length ? industrySources : buildSources(["public_data"]),
+    ),
+    headquartersLocation: createField(
+      headquarters || "Unknown",
+      headquarters ? "inferred" : "estimated",
+      headquarters ? 0.68 : 0.3,
+      locationSources.length ? locationSources : buildSources(["public_data"]),
+    ),
     estimatedEmployeeCount: createField(
       employees || "Unknown",
       employees ? "estimated" : "estimated",
       employees ? 0.64 : 0.25,
-      buildSources(["clearbit", "apollo", "crunchbase"]),
+      employeeSources.length ? employeeSources : buildSources(["public_data"]),
     ),
     countriesOfOperation: createField(
       countries.length ? countries : ["Unknown"],
       countries.length ? "inferred" : "estimated",
       countries.length ? 0.57 : 0.2,
-      buildSources(["crunchbase", "clearbit"]),
+      countrySources.length ? countrySources : buildSources(["public_data"]),
     ),
-    companyStage: createField(stage, stage === "unknown" ? "estimated" : "inferred", stage === "unknown" ? 0.3 : 0.65, buildSources(["employee_estimate", "crunchbase"])),
+    companyStage: createField(
+      stage,
+      stage === "unknown" ? "estimated" : "inferred",
+      stage === "unknown" ? 0.3 : 0.65,
+      buildSources([
+        employeeSources.length ? "employee_estimate" : "",
+        context.crunchbase?.ipo_status ? "crunchbase" : "",
+        context.openSources.sourceUrl ? context.openSources.sourceUrl : "",
+      ]),
+    ),
   };
 
   const growthSignals = buildGrowthSignals(context);
@@ -189,7 +232,9 @@ function buildGrowthSignals(context: EnrichedContext): BriefSectionSignal[] {
       : "No direct hiring data found; verify via careers page and LinkedIn headcount trends.",
     status: hiringMention ? "inferred" : "estimated",
     confidenceScore: hiringMention ? 0.62 : 0.35,
-    sourceAttribution: hiringMention ? buildSources(["newsapi"]) : buildSources(["insufficient_public_data"]),
+    sourceAttribution: hiringMention
+      ? buildSources([sourceFromNewsItem(hiringMention)])
+      : buildSources(["insufficient_public_data"]),
   });
 
   const expansionMention = context.news.find((item) =>
@@ -202,7 +247,9 @@ function buildGrowthSignals(context: EnrichedContext): BriefSectionSignal[] {
       : "No explicit expansion announcement found in indexed sources.",
     status: expansionMention ? "inferred" : "estimated",
     confidenceScore: expansionMention ? 0.58 : 0.3,
-    sourceAttribution: expansionMention ? buildSources(["newsapi"]) : buildSources(["newsapi"]),
+    sourceAttribution: expansionMention
+      ? buildSources([sourceFromNewsItem(expansionMention)])
+      : buildSources(["public_news_scan"]),
   });
 
   const officeMention = context.news.find((item) =>
@@ -215,7 +262,9 @@ function buildGrowthSignals(context: EnrichedContext): BriefSectionSignal[] {
       : "No clear office opening signal found.",
     status: officeMention ? "inferred" : "estimated",
     confidenceScore: officeMention ? 0.54 : 0.25,
-    sourceAttribution: buildSources(["newsapi"]),
+    sourceAttribution: officeMention
+      ? buildSources([sourceFromNewsItem(officeMention)])
+      : buildSources(["public_news_scan"]),
   });
 
   const layoffsMention = context.news.find((item) =>
@@ -228,7 +277,9 @@ function buildGrowthSignals(context: EnrichedContext): BriefSectionSignal[] {
       : "No layoff/restructuring headlines found in the selected sources.",
     status: layoffsMention ? "confirmed" : "estimated",
     confidenceScore: layoffsMention ? 0.67 : 0.32,
-    sourceAttribution: buildSources(["newsapi"]),
+    sourceAttribution: layoffsMention
+      ? buildSources([sourceFromNewsItem(layoffsMention)])
+      : buildSources(["public_news_scan"]),
   });
 
   const hybridSignal = context.benefitsSignals.find((item) =>
@@ -542,4 +593,8 @@ function createField<T>(
 
 function buildSources(items: string[]): string[] {
   return uniqueStrings(items.filter(Boolean));
+}
+
+function sourceFromNewsItem(item: { source?: { name?: string } }): string {
+  return item.source?.name ?? "public_news";
 }

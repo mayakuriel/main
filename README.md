@@ -56,6 +56,7 @@ Supported keys:
 - `PIPEDRIVE_API_TOKEN` (reserved for future integration)
 
 The app gracefully degrades if some keys are missing and reports warnings in the response.
+It also works without any premium API keys using public-source fallback mode (Wikipedia, DuckDuckGo, Google News RSS, and company website scanning).
 
 ## Run locally
 
