@@ -1,11 +1,11 @@
-import { getEnv } from "@/lib/env";
-import { generateBriefWithOpenAI } from "@/lib/providers/openai";
-import { fetchNewsArticles } from "@/lib/providers/newsapi";
-import { fetchCrunchbaseOrganization } from "@/lib/providers/crunchbase";
-import { fetchClearbitCompany } from "@/lib/providers/clearbit";
-import { fetchApolloOrganization } from "@/lib/providers/apollo";
-import { fetchOpenSourcesProfile } from "@/lib/providers/open-sources";
-import { scanBenefitsSignals } from "@/lib/providers/perks-scanner";
+import { getEnv } from "../env";
+import { generateBriefWithOpenAI } from "../providers/openai";
+import { fetchNewsArticles } from "../providers/newsapi";
+import { fetchCrunchbaseOrganization } from "../providers/crunchbase";
+import { fetchClearbitCompany } from "../providers/clearbit";
+import { fetchApolloOrganization } from "../providers/apollo";
+import { fetchOpenSourcesProfile } from "../providers/open-sources";
+import { scanBenefitsSignals } from "../providers/perks-scanner";
 import type {
   BriefSectionSignal,
   FieldInsight,
@@ -15,7 +15,7 @@ import type {
   NewsItem,
   StakeholderSuggestion,
   CompanyStage,
-} from "@/lib/types";
+} from "../types";
 
 interface EnrichedContext {
   companyName: string;

@@ -1,4 +1,4 @@
-import { fetchJson } from "@/lib/http";
+import { fetchJson } from "../http";
 
 export interface ApolloOrganization {
   name?: string;

@@ -1,6 +1,6 @@
 # Company Intelligence Brief Generator
 
-AI-powered Next.js application that generates a structured, sales-oriented company intelligence brief from a single company name input.
+AI-powered **Node.js (Express)** application that generates a structured, sales-oriented company intelligence brief from a single company name input.
 
 ## What it does
 
@@ -31,18 +31,20 @@ The UI also renders:
 
 ## Tech stack
 
-- Next.js (App Router)
+- Node.js + Express
 - TypeScript
-- Server-side API routes
+- Server-side REST API
+- Static frontend (HTML/CSS/JS)
 - Modular provider + intelligence pipeline
 - Prepared CRM integration interface for future Pipedrive sync
+- No Jest test runtime is used
 
 ## Environment variables
 
-Copy `.env.example` to `.env.local` and add keys as available:
+Copy `.env.example` to `.env` and add keys as available:
 
 ```bash
-cp .env.example .env.local
+cp .env.example .env
 ```
 
 Supported keys:
@@ -67,23 +69,21 @@ npm run dev
 
 Then open http://localhost:3000.
 
-Note: this project is configured to run Next.js with **Webpack** (not Turbopack) by default for better cross-platform compatibility in environments where Turbopack native bindings are unavailable.
+### Production build
+
+```bash
+npm run build
+npm run start
+```
 
 ### Troubleshooting
 
-If you encounter a Next.js invariant error like:
-
-`Invariant: Expected workStore to be initialized`
-
-run:
+If startup fails, run:
 
 ```bash
-rm -rf .next
 npm install
 npm run dev
 ```
-
-The app is also configured with a dynamic root segment and explicit error/not-found routes to avoid this class of environment-specific App Router issues.
 ## API
 
 ### `POST /api/brief`
@@ -124,8 +124,9 @@ Response:
 
 ## Architecture overview
 
-- `src/app/api/brief/route.ts` - server-side endpoint and validation
+- `src/server.ts` - Express server, static hosting, API endpoint wiring
+- `src/api/brief-request.ts` - request validation schema
 - `src/lib/intelligence/brief-generator.ts` - orchestration + deterministic fallback
 - `src/lib/providers/*` - provider-specific API adapters
 - `src/lib/integrations/crm/*` - CRM integration contracts (Pipedrive-ready)
-- `src/components/*` - modular UI and expandable brief rendering
+- `public/index.html`, `public/styles.css`, `public/app.js` - frontend UI

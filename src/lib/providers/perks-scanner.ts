@@ -1,4 +1,4 @@
-import { fetchText } from "@/lib/http";
+import { fetchText } from "../http";
 
 const BENEFIT_KEYWORDS = [
   "meal allowance",
