@@ -59,6 +59,17 @@ function renderCompanyData(data) {
     .join("");
 
   const dataQuality = data.dataQuality || {};
+  const webResultsHtml = (data.relatedWebResults || [])
+    .map(
+      (item) => `
+      <li class="news-item">
+        <strong>${escapeHtml(item.title)}</strong><br />
+        ${escapeHtml(item.snippet || "")}<br />
+        ${item.url ? `<a href="${escapeHtml(item.url)}" target="_blank" rel="noopener noreferrer">למקור</a>` : ""}
+      </li>
+    `,
+    )
+    .join("");
   const newsHtml = (data.recentNews || [])
     .map(
       (item) => `
@@ -87,6 +98,10 @@ function renderCompanyData(data) {
       <h2>כתבות אחרונות</h2>
       ${newsHtml ? `<ul>${newsHtml}</ul>` : "<p>לא נמצאו כתבות עדכניות.</p>"}
     </article>
+    <article class="card">
+      <h2>מקורות ווב נוספים</h2>
+      ${webResultsHtml ? `<ul>${webResultsHtml}</ul>` : "<p>לא נמצאו מקורות ווב נוספים.</p>"}
+    </article>
   `;
 
   result.classList.remove("hidden");
@@ -103,6 +118,12 @@ function renderDataQuality(dataQuality) {
   }
   if (typeof dataQuality.newsItemsFound === "number") {
     lines.push(`נמצאו ${dataQuality.newsItemsFound} כתבות.`);
+  }
+  if (typeof dataQuality.webResultsFound === "number") {
+    lines.push(`נמצאו ${dataQuality.webResultsFound} תוצאות ווב רלוונטיות.`);
+  }
+  if (typeof dataQuality.confidence === "number") {
+    lines.push(`רמת ביטחון: ${Math.round(dataQuality.confidence * 100)}%.`);
   }
 
   if (lines.length === 0) {
