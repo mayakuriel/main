@@ -1,6 +1,6 @@
-import { getEnv } from "@/lib/env";
-import type { CrmDealContext, CrmIntegration } from "@/lib/integrations/crm/types";
-import type { GeneratedBriefResponse } from "@/lib/types";
+import { getEnv } from "../../env";
+import type { CrmDealContext, CrmIntegration } from "./types";
+import type { GeneratedBriefResponse } from "../../types";
 
 export class PipedriveIntegration implements CrmIntegration {
   public readonly provider = "pipedrive" as const;

@@ -1,4 +1,4 @@
-import { fetchJson, fetchText } from "@/lib/http";
+import { fetchJson, fetchText } from "../http";
 
 export interface NewsApiArticle {
   source?: { name?: string };

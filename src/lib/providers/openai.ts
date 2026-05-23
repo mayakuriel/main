@@ -1,6 +1,6 @@
-import { intelligenceBriefSchema } from "@/lib/intelligence/schema";
-import { fetchJson } from "@/lib/http";
-import type { IntelligenceBrief } from "@/lib/types";
+import { intelligenceBriefSchema } from "../intelligence/schema";
+import { fetchJson } from "../http";
+import type { IntelligenceBrief } from "../types";
 
 interface ChatCompletionResponse {
   choices?: Array<{

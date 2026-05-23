@@ -1,4 +1,4 @@
-import type { GeneratedBriefResponse } from "@/lib/types";
+import type { GeneratedBriefResponse } from "../../types";
 
 export interface CrmDealContext {
   organizationName: string;

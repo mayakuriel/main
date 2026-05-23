@@ -1,4 +1,4 @@
-import { fetchJson } from "@/lib/http";
+import { fetchJson } from "../http";
 
 interface WikipediaSummary {
   title?: string;

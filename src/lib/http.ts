@@ -1,5 +1,5 @@
 export async function fetchJson<T>(
-  input: RequestInfo | URL,
+  input: string | URL,
   init?: RequestInit & { timeoutMs?: number },
 ): Promise<T> {
   const controller = new AbortController();
@@ -26,7 +26,7 @@ export async function fetchJson<T>(
 }
 
 export async function fetchText(
-  input: RequestInfo | URL,
+  input: string | URL,
   init?: RequestInit & { timeoutMs?: number },
 ): Promise<string> {
   const controller = new AbortController();

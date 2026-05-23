@@ -107,10 +107,6 @@ body {
   padding: 1rem;
 }
 
-.summary-card h2 {
-  margin-top: 0;
-}
-
 .meta-line {
   font-size: 0.84rem;
   color: #475467;
@@ -215,4 +211,8 @@ body {
   max-height: 400px;
   overflow: auto;
   font-size: 0.8rem;
+}
+
+.hidden {
+  display: none;
 }
