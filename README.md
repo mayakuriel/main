@@ -67,6 +67,8 @@ npm run dev
 
 Then open http://localhost:3000.
 
+Note: this project is configured to run Next.js with **Webpack** (not Turbopack) by default for better cross-platform compatibility in environments where Turbopack native bindings are unavailable.
+
 ## API
 
 ### `POST /api/brief`
