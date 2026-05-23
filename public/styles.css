@@ -1,216 +1,83 @@
-:root {
-  color-scheme: light;
-  font-family: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-  background: #f7f8fb;
-  color: #1a1f2e;
-}
-
-* {
-  box-sizing: border-box;
-}
-
 body {
+  font-family: Arial, sans-serif;
+  background: #f4f6f8;
   margin: 0;
-  min-height: 100vh;
+  color: #1f2937;
 }
 
 .container {
-  max-width: 1120px;
+  max-width: 900px;
   margin: 0 auto;
-  padding: 2rem 1.25rem 4rem;
+  padding: 2rem 1rem 3rem;
 }
 
-.page-header h1 {
-  margin: 0;
-  font-size: 2rem;
-  color: #1d2939;
-}
-
-.page-header p {
-  max-width: 780px;
-  color: #475467;
-  margin-top: 0.75rem;
-}
-
-.generator {
-  margin-top: 1.5rem;
-}
-
-.search-controls {
-  background: #ffffff;
-  border: 1px solid #d0d5dd;
-  border-radius: 14px;
-  padding: 1rem;
-}
-
-.search-controls label {
-  display: block;
-  font-weight: 600;
+h1 {
   margin-bottom: 0.5rem;
 }
 
-.search-row {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.75rem;
-}
-
-.search-row input {
-  flex: 1;
-  min-width: 260px;
-  border: 1px solid #d0d5dd;
-  border-radius: 10px;
-  padding: 0.75rem 0.85rem;
-  font-size: 1rem;
-}
-
-.search-row button {
-  border: 0;
-  border-radius: 10px;
-  background: #0f62fe;
-  color: #ffffff;
-  font-weight: 600;
-  padding: 0.75rem 1rem;
-  cursor: pointer;
-}
-
-.search-row button:disabled {
-  opacity: 0.6;
-  cursor: not-allowed;
-}
-
-.loading-text {
-  margin-top: 0.75rem;
-  color: #344054;
-}
-
-.error-banner {
-  margin-top: 0.75rem;
-  background: #fef3f2;
-  color: #b42318;
-  border: 1px solid #fecdca;
-  border-radius: 8px;
-  padding: 0.65rem 0.8rem;
-}
-
-.brief-wrapper {
-  margin-top: 1.25rem;
-  display: grid;
-  gap: 0.9rem;
-}
-
-.summary-card,
-.detail-section {
+.search-box {
+  margin-top: 1rem;
   background: #ffffff;
-  border: 1px solid #d0d5dd;
-  border-radius: 14px;
+  border: 1px solid #d1d5db;
+  border-radius: 10px;
   padding: 1rem;
 }
 
-.meta-line {
-  font-size: 0.84rem;
-  color: #475467;
+.row {
+  display: flex;
+  gap: 0.5rem;
+  margin-top: 0.5rem;
 }
 
-.warning-list {
-  margin: 0.6rem 0 0;
-  padding-left: 1rem;
-  color: #b54708;
+input {
+  flex: 1;
+  padding: 0.65rem;
+  border-radius: 8px;
+  border: 1px solid #cbd5e1;
 }
 
-.detail-section summary {
+button {
+  border: 0;
+  border-radius: 8px;
+  background: #2563eb;
+  color: #fff;
+  padding: 0.65rem 1rem;
   cursor: pointer;
-  font-weight: 700;
 }
 
-.detail-grid {
-  margin: 1rem 0 0;
-  padding-left: 0;
-  list-style: none;
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
-  gap: 0.8rem;
-}
-
-.snapshot-field {
-  border: 1px solid #eaecf0;
-  border-radius: 10px;
-  padding: 0.8rem;
-}
-
-.snapshot-field h4 {
-  margin: 0 0 0.4rem;
-}
-
-.snapshot-field p {
-  margin: 0 0 0.4rem;
-}
-
-.snapshot-field small {
-  display: block;
-  color: #475467;
-}
-
-.status-pill {
-  display: inline-block;
-  font-size: 0.72rem;
-  font-weight: 600;
-  text-transform: capitalize;
-  border-radius: 999px;
-  padding: 0.12rem 0.42rem;
-  margin-right: 0.3rem;
-}
-
-.status-confirmed {
-  background: #ecfdf3;
-  color: #027a48;
-}
-
-.status-inferred {
-  background: #eef4ff;
-  color: #3538cd;
-}
-
-.status-estimated {
-  background: #fff6ed;
-  color: #b54708;
-}
-
-.stack-list {
-  margin: 1rem 0 0;
-  padding-left: 0;
-  list-style: none;
-  display: grid;
-  gap: 0.6rem;
-}
-
-.stack-card {
-  border: 1px solid #eaecf0;
-  border-radius: 10px;
-  padding: 0.8rem;
-}
-
-.stack-card h4 {
-  margin: 0 0 0.5rem;
-}
-
-.stack-card p {
-  margin: 0 0 0.5rem;
-}
-
-.stack-card small {
-  color: #475467;
-}
-
-.json-output {
+.status {
+  color: #334155;
   margin-top: 1rem;
-  background: #101828;
-  color: #d0d5dd;
+}
+
+.error {
+  color: #b91c1c;
+  background: #fee2e2;
+  border: 1px solid #fecaca;
+  border-radius: 8px;
+  padding: 0.6rem;
+  margin-top: 1rem;
+}
+
+.card {
+  margin-top: 1rem;
+  background: #fff;
+  border: 1px solid #d1d5db;
   border-radius: 10px;
-  padding: 0.8rem;
-  max-height: 400px;
-  overflow: auto;
-  font-size: 0.8rem;
+  padding: 1rem;
+}
+
+.card h2 {
+  margin-top: 0;
+}
+
+.card ul {
+  margin: 0.5rem 0 0;
+  padding-right: 1.2rem;
+}
+
+.news-item {
+  margin-bottom: 0.75rem;
 }
 
 .hidden {

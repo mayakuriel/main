@@ -1,40 +1,28 @@
 <!doctype html>
-<html lang="en">
+<html lang="he">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Company Intelligence Brief Generator</title>
-    <meta
-      name="description"
-      content="AI-powered sales brief generator for enterprise account research."
-    />
-    <link rel="icon" href="/favicon.svg" />
+    <title>Company Info Finder</title>
     <link rel="stylesheet" href="/styles.css" />
   </head>
   <body>
     <main class="container">
-      <header class="page-header">
-        <h1>Company Intelligence Brief Generator</h1>
-        <p>
-          Generate structured, sales-oriented intelligence briefs to evaluate fit for Wolt Benefits
-          and identify the best outreach angle.
-        </p>
-      </header>
+      <h1>מערכת מידע על חברות</h1>
+      <p>תן שם חברה ותקבל תחום פעילות, מידע כללי וכתבות אחרונות.</p>
 
-      <section class="generator">
-        <div class="search-controls">
-          <label for="companyName">Company name</label>
-          <div class="search-row">
-            <input id="companyName" placeholder="Type a company (e.g., Stripe)" />
-            <button id="generateButton" type="button" disabled>Generate Brief</button>
-          </div>
+      <section class="search-box">
+        <label for="companyName">שם חברה</label>
+        <div class="row">
+          <input id="companyName" placeholder="לדוגמה: Stripe" />
+          <button id="fetchButton" type="button">חפש</button>
         </div>
-
-        <p id="statusText" class="loading-text hidden">Collecting company intelligence...</p>
-        <p id="errorBanner" class="error-banner hidden"></p>
-
-        <section id="resultPanel" class="brief-wrapper hidden"></section>
       </section>
+
+      <p id="statusText" class="status hidden">טוען מידע...</p>
+      <p id="errorText" class="error hidden"></p>
+
+      <section id="result" class="hidden"></section>
     </main>
 
     <script src="/app.js" defer></script>
