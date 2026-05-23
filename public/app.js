@@ -47,6 +47,18 @@ async function loadCompanyInfo() {
 
 function renderCompanyData(data) {
   const company = data.company;
+  const sourcesHtml = (data.sources || [])
+    .map(
+      (source) => `
+      <li>
+        ${escapeHtml(source.name)} -
+        <a href="${escapeHtml(source.url)}" target="_blank" rel="noopener noreferrer">מקור</a>
+      </li>
+    `,
+    )
+    .join("");
+
+  const dataQuality = data.dataQuality || {};
   const newsHtml = (data.recentNews || [])
     .map(
       (item) => `
@@ -68,6 +80,8 @@ function renderCompanyData(data) {
       <p><strong>מיקום:</strong> ${escapeHtml(company.headquarters)}</p>
       <p><strong>כמות עובדים:</strong> ${escapeHtml(company.employeeCount)}</p>
       <p><strong>תיאור כללי:</strong> ${escapeHtml(company.description)}</p>
+      ${renderDataQuality(dataQuality)}
+      ${sourcesHtml ? `<h3>מקורות</h3><ul>${sourcesHtml}</ul>` : ""}
     </article>
     <article class="card">
       <h2>כתבות אחרונות</h2>
@@ -76,6 +90,26 @@ function renderCompanyData(data) {
   `;
 
   result.classList.remove("hidden");
+}
+
+function renderDataQuality(dataQuality) {
+  if (!dataQuality || typeof dataQuality !== "object") {
+    return "";
+  }
+
+  const lines = [];
+  if (dataQuality.summarySourceFound === false) {
+    lines.push("לא נמצא עמוד סיכום רשמי, בוצע fallback מכתבות.");
+  }
+  if (typeof dataQuality.newsItemsFound === "number") {
+    lines.push(`נמצאו ${dataQuality.newsItemsFound} כתבות.`);
+  }
+
+  if (lines.length === 0) {
+    return "";
+  }
+
+  return `<p><strong>איכות מידע:</strong> ${escapeHtml(lines.join(" "))}</p>`;
 }
 
 function showError(message) {

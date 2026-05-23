@@ -1,16 +1,31 @@
 const GOOGLE_NEWS_RSS_URL = "https://news.google.com/rss/search";
+const WIKIPEDIA_SUMMARY_URL = "https://en.wikipedia.org/api/rest_v1/page/summary";
+const WIKIPEDIA_API_URL = "https://en.wikipedia.org/w/api.php";
 
 async function getCompanyIntel(companyName) {
   const normalizedName = companyName.trim();
 
-  const [wikiSummary, recentNews] = await Promise.all([
+  const [rawWikiSummary, recentNews] = await Promise.all([
     fetchWikipediaSummary(normalizedName),
     fetchRecentNews(normalizedName),
   ]);
+  const wikiSummary = isLikelyCompanySummary(rawWikiSummary, normalizedName)
+    ? rawWikiSummary
+    : null;
 
-  const extractedFromSummary = extractGeneralData(wikiSummary?.extract || "");
+  const textForExtraction = [wikiSummary?.extract || "", ...recentNews.map((item) => `${item.title} ${item.summary}`)]
+    .join(" ")
+    .trim();
+
+  const extractedFromText = extractGeneralData(textForExtraction);
   const industry =
-    extractedFromSummary.industry || wikiSummary?.description || "No clear industry data found";
+    extractedFromText.industry ||
+    wikiSummary?.description ||
+    inferIndustryFromNews(recentNews) ||
+    "No clear industry data found";
+
+  const companyDescription =
+    wikiSummary?.extract || buildFallbackDescription(normalizedName, recentNews);
 
   return {
     query: normalizedName,
@@ -18,20 +33,42 @@ async function getCompanyIntel(companyName) {
       name: wikiSummary?.title || normalizedName,
       industry,
       headquarters:
-        extractedFromSummary.headquarters || "No clear headquarters data found",
+        extractedFromText.headquarters || "No clear headquarters data found",
       employeeCount:
-        extractedFromSummary.employeeCount || "No public employee count found",
-      description: wikiSummary?.extract || "No general description found",
+        extractedFromText.employeeCount || "No public employee count found",
+      description: companyDescription || "No general description found",
     },
     recentNews,
-    sources: buildSources(wikiSummary, recentNews),
+    sources: buildSources(wikiSummary, recentNews, normalizedName),
+    dataQuality: {
+      summarySourceFound: Boolean(wikiSummary?.extract),
+      newsItemsFound: recentNews.length,
+      inferredFromNews: !wikiSummary?.extract && recentNews.length > 0,
+    },
     generatedAt: new Date().toISOString(),
   };
 }
 
 async function fetchWikipediaSummary(companyName) {
-  const slug = encodeURIComponent(companyName.replace(/\s+/g, "_"));
-  const url = `https://en.wikipedia.org/api/rest_v1/page/summary/${slug}`;
+  const directSummary = await fetchWikipediaSummaryByTitle(companyName);
+  if (directSummary?.extract) {
+    return directSummary;
+  }
+
+  const searchCandidate = await searchWikipediaTitle(companyName);
+  if (searchCandidate) {
+    const fromSearch = await fetchWikipediaSummaryByTitle(searchCandidate);
+    if (fromSearch?.extract) {
+      return fromSearch;
+    }
+  }
+
+  return null;
+}
+
+async function fetchWikipediaSummaryByTitle(title) {
+  const slug = encodeURIComponent(title.replace(/\s+/g, "_"));
+  const url = `${WIKIPEDIA_SUMMARY_URL}/${slug}`;
 
   try {
     const response = await fetch(url, { headers: { Accept: "application/json" } });
@@ -45,12 +82,56 @@ async function fetchWikipediaSummary(companyName) {
   }
 }
 
+async function searchWikipediaTitle(companyName) {
+  const url = new URL(WIKIPEDIA_API_URL);
+  url.searchParams.set("action", "query");
+  url.searchParams.set("list", "search");
+  url.searchParams.set("format", "json");
+  url.searchParams.set("utf8", "1");
+  url.searchParams.set("srlimit", "5");
+  url.searchParams.set("srsearch", companyName);
+
+  try {
+    const response = await fetch(url.toString(), { headers: { Accept: "application/json" } });
+    if (!response.ok) {
+      return null;
+    }
+
+    const payload = await response.json();
+    const results = payload?.query?.search || [];
+    if (results.length === 0) {
+      return null;
+    }
+
+    const normalized = companyName.toLowerCase();
+    const exactLike = results.find((item) => item.title?.toLowerCase().includes(normalized));
+    return (exactLike || results[0]).title || null;
+  } catch {
+    return null;
+  }
+}
+
 async function fetchRecentNews(companyName) {
+  const searchPlans = [
+    { query: companyName, hl: "he", gl: "IL", ceid: "IL:he" },
+    { query: companyName, hl: "en-US", gl: "US", ceid: "US:en" },
+    { query: `"${companyName}"`, hl: "he", gl: "IL", ceid: "IL:he" },
+    { query: `"${companyName}"`, hl: "en-US", gl: "US", ceid: "US:en" },
+  ];
+
+  const results = await Promise.all(
+    searchPlans.map((plan) => fetchRecentNewsByQuery(plan.query, plan.hl, plan.gl, plan.ceid)),
+  );
+
+  return dedupeNews(results.flat()).slice(0, 6);
+}
+
+async function fetchRecentNewsByQuery(query, hl, gl, ceid) {
   const url = new URL(GOOGLE_NEWS_RSS_URL);
-  url.searchParams.set("q", `"${companyName}"`);
-  url.searchParams.set("hl", "en-US");
-  url.searchParams.set("gl", "US");
-  url.searchParams.set("ceid", "US:en");
+  url.searchParams.set("q", query);
+  url.searchParams.set("hl", hl);
+  url.searchParams.set("gl", gl);
+  url.searchParams.set("ceid", ceid);
 
   try {
     const response = await fetch(url.toString());
@@ -59,7 +140,7 @@ async function fetchRecentNews(companyName) {
     }
 
     const xml = await response.text();
-    return parseRssItems(xml).slice(0, 5);
+    return parseRssItems(xml);
   } catch {
     return [];
   }
@@ -78,7 +159,7 @@ function parseRssItems(xml) {
     const description = cleanDescription(cleanText(extractTag(itemXml, "description")));
 
     return {
-      title: title || "Untitled news item",
+      title: normalizeNewsTitle(title || "Untitled news item"),
       source,
       publishedAt: pubDate || "Unknown date",
       summary: description || "No summary available",
@@ -121,20 +202,31 @@ function extractGeneralData(summaryText) {
 
   const headquartersMatch =
     cleaned.match(/headquartered in ([^.,;]+)/i) ||
-    cleaned.match(/based in ([^.,;]+)/i);
+    cleaned.match(/based in ([^.,;]+)/i) ||
+    cleaned.match(/ממוקמת ב([^.,;]+)/i) ||
+    cleaned.match(/שבסיסה ב([^.,;]+)/i) ||
+    cleaned.match(/מטה(?: החברה)? ב([^.,;]+)/i);
 
   const employeeMatch =
     cleaned.match(/(\d{1,3}(?:,\d{3})+|\d+)\s+employees/i) ||
-    cleaned.match(/employs\s+(\d{1,3}(?:,\d{3})+|\d+)/i);
+    cleaned.match(/employs\s+(\d{1,3}(?:,\d{3})+|\d+)/i) ||
+    cleaned.match(/מעסיקה(?: כ-?)?(\d{1,3}(?:,\d{3})+|\d+)/i) ||
+    cleaned.match(/(\d{1,3}(?:,\d{3})+|\d+)\s+עובדים/i);
 
   let industry = "";
   if (lower.includes("software")) industry = "Software / Technology";
   else if (lower.includes("fintech")) industry = "Fintech";
+  else if (lower.includes("data") || lower.includes("analytics")) industry = "Data / Analytics";
+  else if (lower.includes("ai") || lower.includes("artificial intelligence")) industry = "AI";
   else if (lower.includes("bank")) industry = "Banking / Finance";
   else if (lower.includes("retail")) industry = "Retail";
   else if (lower.includes("e-commerce")) industry = "E-commerce";
   else if (lower.includes("logistics")) industry = "Logistics";
   else if (lower.includes("health")) industry = "Health / Healthcare";
+  else if (lower.includes("סייבר")) industry = "Cybersecurity";
+  else if (lower.includes("פינטק")) industry = "Fintech";
+  else if (lower.includes("דאטה") || lower.includes("נתונים")) industry = "Data / Analytics";
+  else if (lower.includes("בינה מלאכותית")) industry = "AI";
 
   return {
     headquarters: headquartersMatch?.[1]?.trim() || "",
@@ -143,7 +235,38 @@ function extractGeneralData(summaryText) {
   };
 }
 
-function buildSources(wikiSummary, recentNews) {
+function inferIndustryFromNews(recentNews) {
+  if (!recentNews || recentNews.length === 0) {
+    return "";
+  }
+
+  const combined = recentNews.map((item) => `${item.title} ${item.summary}`).join(" ").toLowerCase();
+
+  if (combined.includes("סייבר")) return "Cybersecurity";
+  if (combined.includes("פינטק")) return "Fintech";
+  if (combined.includes("בינה מלאכותית")) return "AI";
+  if (combined.includes("דאטה") || combined.includes("נתונים")) return "Data / Analytics";
+  if (combined.includes("fintech")) return "Fintech";
+  if (combined.includes("data") || combined.includes("analytics")) return "Data / Analytics";
+  if (combined.includes("ai") || combined.includes("artificial intelligence")) return "AI";
+
+  return "";
+}
+
+function buildFallbackDescription(companyName, recentNews) {
+  if (!recentNews || recentNews.length === 0) {
+    return "";
+  }
+
+  const topHeadline = recentNews[0]?.title || "";
+  if (!topHeadline) {
+    return "";
+  }
+
+  return `No official summary page was found quickly for ${companyName}. Recent coverage includes: ${topHeadline}`;
+}
+
+function buildSources(wikiSummary, recentNews, companyName) {
   const sources = [];
 
   if (wikiSummary?.content_urls?.desktop?.page) {
@@ -158,11 +281,85 @@ function buildSources(wikiSummary, recentNews) {
     sources.push({
       type: "news",
       name: "Google News RSS",
-      url: "https://news.google.com",
+      url: `https://news.google.com/search?q=${encodeURIComponent(companyName)}`,
     });
   }
 
   return sources;
+}
+
+function isLikelyCompanySummary(summary, companyName) {
+  if (!summary || !summary.extract) {
+    return false;
+  }
+
+  const searchable = `${summary.title || ""} ${summary.description || ""} ${summary.extract || ""}`
+    .toLowerCase()
+    .trim();
+  const tokens = companyName
+    .toLowerCase()
+    .split(/\s+/)
+    .map((token) => token.trim())
+    .filter((token) => token.length > 1);
+
+  if (tokens.length === 0) {
+    return true;
+  }
+
+  const tokenHits = tokens.filter((token) => searchable.includes(token)).length;
+  const hasBasicMatch = tokenHits >= Math.max(1, Math.floor(tokens.length / 2));
+
+  const negativePersonHints = [
+    "footballer",
+    "singer",
+    "actor",
+    "actress",
+    "politician",
+    "japanese professional",
+    "born ",
+  ];
+  const hasPersonHint = negativePersonHints.some((hint) => searchable.includes(hint));
+
+  const companyHints = [
+    "company",
+    "startup",
+    "founded",
+    "technology",
+    "software",
+    "corporation",
+    "inc.",
+    "ltd",
+    "חברה",
+    "סטארטאפ",
+  ];
+  const hasCompanyHint = companyHints.some((hint) => searchable.includes(hint));
+
+  if (hasPersonHint && !hasCompanyHint) {
+    return false;
+  }
+
+  return hasBasicMatch;
+}
+
+function dedupeNews(items) {
+  const seen = new Set();
+  const unique = [];
+
+  for (const item of items) {
+    const key = `${item.title}|${item.source}|${item.publishedAt}`;
+    if (seen.has(key)) {
+      continue;
+    }
+
+    seen.add(key);
+    unique.push(item);
+  }
+
+  return unique;
+}
+
+function normalizeNewsTitle(title) {
+  return title.replace(/\s*-\s*[^-]+$/g, "").trim();
 }
 
 module.exports = {
