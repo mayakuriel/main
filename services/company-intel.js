@@ -19,6 +19,36 @@ const STOP_WORDS = new Set([
   "solutions",
 ]);
 
+const QUERY_ALIASES = {
+  "shlomo sixt": ["שלמה סיקסט", "shlomo group", "sixt israel", "שלמה גרופ"],
+  "yuki": ["yuki data", "יוקי דאטה"],
+  "yuki data": ["יוקי דאטה", "yuki"],
+  "yes ro": ["yes israel", "yes tv", "yes satellite", "יס"],
+  yes: ["yes israel", "yes tv", "yes satellite", "יס"],
+};
+
+const KNOWN_COMPANY_PROFILES = {
+  "shlomo sixt": {
+    displayName: "Shlomo Sixt",
+    industry: "Car Rental / Mobility",
+    headquarters: "Israel",
+  },
+  "yes ro": {
+    displayName: "yes (Israel TV)",
+    industry: "Media / Television",
+    headquarters: "Israel",
+  },
+  yes: {
+    displayName: "yes (Israel TV)",
+    industry: "Media / Television",
+    headquarters: "Israel",
+  },
+  yuki: {
+    displayName: "Yuki Data",
+    industry: "Data / Analytics",
+  },
+};
+
 const GENERIC_SUFFIXES = [
   "inc",
   "inc.",
@@ -38,6 +68,7 @@ const GENERIC_SUFFIXES = [
 
 async function getCompanyIntel(companyName) {
   const normalizedName = companyName.trim();
+  const knownProfile = getKnownCompanyProfile(normalizedName);
   const nameVariants = buildNameVariants(normalizedName);
 
   const [wikiSummary, recentNews, relatedWebResults] = await Promise.all([
@@ -59,11 +90,13 @@ async function getCompanyIntel(companyName) {
     extracted.industry ||
     wikiSummary?.description ||
     inferIndustryFromSignals(recentNews, relatedWebResults) ||
+    knownProfile?.industry ||
     "No clear industry data found";
 
   const headquarters =
     extracted.headquarters ||
     inferHeadquartersFromWeb(relatedWebResults) ||
+    knownProfile?.headquarters ||
     "No clear headquarters data found";
 
   const employeeCount = normalizeEmployeeCount(
@@ -80,7 +113,7 @@ async function getCompanyIntel(companyName) {
   return {
     query: normalizedName,
     company: {
-      name: wikiSummary?.title || normalizedName,
+      name: wikiSummary?.title || knownProfile?.displayName || normalizedName,
       industry,
       headquarters,
       employeeCount: employeeCount || "No public employee count found",
@@ -105,6 +138,10 @@ function buildNameVariants(companyName) {
   const normalized = companyName.replace(/\s+/g, " ").trim();
   variants.add(normalized);
 
+  for (const alias of getAliasesForQuery(normalized)) {
+    variants.add(alias);
+  }
+
   const tokens = normalized.split(" ").filter(Boolean);
   if (tokens.length >= 2) {
     const withoutSuffix = [...tokens];
@@ -127,7 +164,7 @@ function buildNameVariants(companyName) {
     variants.add(tokens.slice(0, 2).join(" "));
   }
 
-  return [...variants].filter(Boolean).slice(0, 5);
+  return [...variants].filter(Boolean).slice(0, 8);
 }
 
 async function fetchBestWikipediaSummary(companyName, nameVariants) {
@@ -465,7 +502,7 @@ function extractGeneralData(text) {
   if (lower.includes("software")) industry = "Software / Technology";
   else if (lower.includes("fintech")) industry = "Fintech";
   else if (lower.includes("data") || lower.includes("analytics")) industry = "Data / Analytics";
-  else if (lower.includes("ai") || lower.includes("artificial intelligence")) industry = "AI";
+  else if (/\bai\b/i.test(lower) || lower.includes("artificial intelligence")) industry = "AI";
   else if (lower.includes("bank")) industry = "Banking / Finance";
   else if (lower.includes("retail")) industry = "Retail";
   else if (lower.includes("e-commerce")) industry = "E-commerce";
@@ -496,7 +533,7 @@ function inferIndustryFromSignals(newsItems, webResults) {
   if (combined.includes("דאטה") || combined.includes("נתונים")) return "Data / Analytics";
   if (combined.includes("fintech")) return "Fintech";
   if (combined.includes("data") || combined.includes("analytics")) return "Data / Analytics";
-  if (combined.includes("artificial intelligence") || combined.includes(" machine learning ")) return "AI";
+  if (combined.includes("artificial intelligence") || /\bai\b/i.test(combined) || combined.includes(" machine learning ")) return "AI";
   if (combined.includes("cybersecurity")) return "Cybersecurity";
 
   return "";
@@ -660,6 +697,10 @@ function isLikelyCompanyNews(companyName, item) {
   const tokens = tokenizeCompanyName(companyName);
   const tokenHits = countCompanyTokenHits(companyName, combined);
   const exactPhrase = combined.includes(companyLower);
+  const aliasMatch = getAliasesForQuery(companyName)
+    .map((alias) => alias.toLowerCase())
+    .some((alias) => alias.length > 2 && combined.includes(alias));
+  const ambiguousQuery = isAmbiguousCompanyQuery(companyName);
   const queryContainsCompany = (item.query || "").toLowerCase().includes(companyLower);
   const trustedSource = isTrustedBusinessSource(item.source || "", item.sourceUrl || "");
 
@@ -676,7 +717,11 @@ function isLikelyCompanyNews(companyName, item) {
     return false;
   }
 
-  if (exactPhrase) {
+  if (ambiguousQuery && !exactPhrase && !aliasMatch) {
+    return false;
+  }
+
+  if (exactPhrase || aliasMatch) {
     return true;
   }
 
@@ -687,13 +732,17 @@ function isLikelyCompanyNews(companyName, item) {
     if (queryContainsCompany && businessHints && trustedSource && tokenHits >= 1) {
       return true;
     }
-    if ((item.query || "").toLowerCase().includes(`"${companyLower}"`) && !noiseHints) {
+    if (
+      (item.query || "").toLowerCase().includes(`"${companyLower}"`) &&
+      !noiseHints &&
+      (tokenHits >= 2 || aliasMatch)
+    ) {
       return true;
     }
     return false;
   }
 
-  return tokenHits >= 1;
+  return tokenHits >= 1 && (trustedSource || businessHints);
 }
 
 function isTrustedBusinessSource(sourceName, sourceUrl) {
@@ -704,11 +753,17 @@ function isTrustedBusinessSource(sourceName, sourceUrl) {
 }
 
 function tokenizeCompanyName(companyName) {
-  return companyName
+  const rawTokens = companyName
     .toLowerCase()
     .split(/[\s\-_.,/]+/)
     .map((token) => token.trim())
-    .filter((token) => token.length > 1 && !STOP_WORDS.has(token));
+    .filter((token) => token.length > 1);
+
+  if (rawTokens.length <= 1) {
+    return rawTokens;
+  }
+
+  return rawTokens.filter((token) => token.length > 2 && !STOP_WORDS.has(token));
 }
 
 function countCompanyTokenHits(companyName, lowerText) {
@@ -730,9 +785,12 @@ function tokenVariants(token) {
 
   const map = {
     data: ["דאטה", "נתונים"],
-    ai: ["בינה מלאכותית", "ai"],
+    ai: ["בינה מלאכותית"],
     fintech: ["פינטק"],
     yuki: ["יוקי"],
+    shlomo: ["שלמה"],
+    sixt: ["סיקסט"],
+    yes: ["יס"],
   };
 
   for (const item of map[token.toLowerCase()] || []) {
@@ -740,6 +798,34 @@ function tokenVariants(token) {
   }
 
   return [...variants];
+}
+
+function getAliasesForQuery(companyName) {
+  const key = companyName.toLowerCase().trim();
+  return QUERY_ALIASES[key] || [];
+}
+
+function isAmbiguousCompanyQuery(companyName) {
+  const tokens = companyName
+    .toLowerCase()
+    .split(/[\s\-_.,/]+/)
+    .map((token) => token.trim())
+    .filter(Boolean);
+
+  if (tokens.length === 0) {
+    return true;
+  }
+
+  if (tokens.some((token) => ["yes", "ro", "or"].includes(token))) {
+    return true;
+  }
+
+  return tokens.length >= 2 && tokens.every((token) => token.length <= 3);
+}
+
+function getKnownCompanyProfile(companyName) {
+  const key = companyName.toLowerCase().trim();
+  return KNOWN_COMPANY_PROFILES[key] || null;
 }
 
 function isLikelyCompanySummary(summary, companyName) {
@@ -750,6 +836,9 @@ function isLikelyCompanySummary(summary, companyName) {
   const searchable = `${summary.title || ""} ${summary.description || ""} ${summary.extract || ""}`
     .toLowerCase()
     .trim();
+  if (/may refer to|disambiguation/i.test(searchable)) {
+    return false;
+  }
   const relevance = calculateRelevanceScore(companyName, searchable);
 
   const hasPersonHint = /(footballer|singer|actor|actress|politician|born )/i.test(searchable);
